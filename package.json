@@ -12,7 +12,6 @@
     "@eslint/eslintrc": "^3.3.5",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.3",
-    "@tailwindcss/oxide-darwin-x64": "^4.2.4",
     "next": "^15.3.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
