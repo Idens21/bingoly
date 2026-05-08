@@ -6,7 +6,6 @@ export async function POST(req: Request) {
   const db = getSupabaseClient()
   const { gameCode, playlistUrl } = await req.json()
 
-  // Extract playlist ID from URL or raw ID
   const playlistId = playlistUrl.includes('spotify.com')
     ? playlistUrl.split('/playlist/')[1]?.split('?')[0]
     : playlistUrl.trim()
@@ -19,7 +18,6 @@ export async function POST(req: Request) {
   const token = await getValidToken(session)
   if (!token) return NextResponse.json({ error: 'Spotify niet gekoppeld' }, { status: 401 })
 
-  // Refresh token in DB if needed
   if (token !== session.spotify_access_token) {
     const refreshed = await refreshAccessToken(session.spotify_refresh_token)
     if (refreshed) {
@@ -30,31 +28,32 @@ export async function POST(req: Request) {
     }
   }
 
-  // Verify token works + check scopes via /v1/me
-  const meRes = await fetch('https://api.spotify.com/v1/me', {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!meRes.ok) {
-    const meErr = await meRes.text()
-    return NextResponse.json({ error: `Token ongeldig (${meRes.status}): ${meErr}` }, { status: 401 })
-  }
-
-  // Fetch all tracks from playlist (handle pagination)
+  // Use GET /v1/playlists/{id} with embedded tracks (avoids /tracks endpoint restriction)
   const songs: string[] = []
-  let url: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`
+  let offset = 0
+  const limit = 100
 
-  while (url) {
-    const fetchRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  while (true) {
+    const fetchRes = await fetch(
+      `https://api.spotify.com/v1/playlists/${playlistId}?offset=${offset}&limit=${limit}&fields=tracks.items(track(name,artists(name))),tracks.next,tracks.total`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
     if (!fetchRes.ok) {
       const errBody = await fetchRes.text()
       return NextResponse.json({ error: `Spotify ${fetchRes.status}: ${errBody}` }, { status: 400 })
     }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = await fetchRes.json()
-    for (const item of data.items ?? []) {
+    const items = data?.tracks?.items ?? []
+
+    for (const item of items) {
       if (item?.track?.name) songs.push(formatTrack(item.track))
     }
-    url = data.next ?? null
+
+    if (!data?.tracks?.next || items.length < limit) break
+    offset += limit
   }
 
   if (songs.length < 25) {
