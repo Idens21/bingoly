@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabase'
-import { makeCard } from '@/lib/game-logic'
+import { makeCard, shuffle } from '@/lib/game-logic'
+
+function makeCardFromSongs(songs: string[]): string[] {
+  if (songs.length < 24) return makeCard()
+  const picked = shuffle(songs).slice(0, 24)
+  picked.splice(12, 0, 'FREE')
+  return picked
+}
 
 export async function POST(req: Request) {
   const db = getSupabaseClient()
@@ -10,7 +17,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Vul een naam in' }, { status: 400 })
   }
 
-  const card = makeCard()
+  // Use Spotify songs if available for this session
+  const { data: session } = await db.from('game_sessions').select('songs').eq('id', sessionId).single()
+  const songs: string[] = session?.songs ?? []
+  const card = makeCardFromSongs(songs)
+
   const { data, error } = await db
     .from('players')
     .insert({ session_id: sessionId, name: name.trim(), card, marked_indices: [12] })
