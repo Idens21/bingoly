@@ -6,12 +6,13 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const gameCode = searchParams.get('state')
-  const error = searchParams.get('error')
+  const spotifyError = searchParams.get('error')
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!.trim()
 
-  if (error || !code || !gameCode) {
-    return NextResponse.redirect(`${baseUrl}/host/${gameCode}?spotify_error=true`)
+  if (spotifyError || !code || !gameCode) {
+    const reason = spotifyError ?? 'missing_code'
+    return NextResponse.redirect(`${baseUrl}/host/${gameCode}?spotify_error=${reason}`)
   }
 
   // Exchange code for tokens
@@ -29,7 +30,8 @@ export async function GET(req: Request) {
   })
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${baseUrl}/host/${gameCode}?spotify_error=true`)
+    const body = await tokenRes.text()
+    return NextResponse.redirect(`${baseUrl}/host/${gameCode}?spotify_error=token_${tokenRes.status}&detail=${encodeURIComponent(body)}`)
   }
 
   const tokens = await tokenRes.json()
