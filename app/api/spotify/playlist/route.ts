@@ -30,9 +30,18 @@ export async function POST(req: Request) {
     }
   }
 
+  // Verify token works + check scopes via /v1/me
+  const meRes = await fetch('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!meRes.ok) {
+    const meErr = await meRes.text()
+    return NextResponse.json({ error: `Token ongeldig (${meRes.status}): ${meErr}` }, { status: 401 })
+  }
+
   // Fetch all tracks from playlist (handle pagination)
   const songs: string[] = []
-  let url: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name)))`
+  let url: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`
 
   while (url) {
     const fetchRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -40,9 +49,10 @@ export async function POST(req: Request) {
       const errBody = await fetchRes.text()
       return NextResponse.json({ error: `Spotify ${fetchRes.status}: ${errBody}` }, { status: 400 })
     }
-    const data: { next: string | null; items: { track: { name: string; artists: { name: string }[] } }[] } = await fetchRes.json()
-    for (const item of data.items) {
-      if (item.track?.name) songs.push(formatTrack(item.track))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await fetchRes.json()
+    for (const item of data.items ?? []) {
+      if (item?.track?.name) songs.push(formatTrack(item.track))
     }
     url = data.next ?? null
   }
