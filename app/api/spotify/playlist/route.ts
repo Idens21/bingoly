@@ -36,7 +36,10 @@ export async function POST(req: Request) {
 
   while (url) {
     const fetchRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (!fetchRes.ok) return NextResponse.json({ error: 'Playlist ophalen mislukt' }, { status: 400 })
+    if (!fetchRes.ok) {
+      const errBody = await fetchRes.text()
+      return NextResponse.json({ error: `Spotify ${fetchRes.status}: ${errBody}` }, { status: 400 })
+    }
     const data: { next: string | null; items: { track: { name: string; artists: { name: string }[] } }[] } = await fetchRes.json()
     for (const item of data.items) {
       if (item.track?.name) songs.push(formatTrack(item.track))
